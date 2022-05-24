@@ -4,7 +4,19 @@
 #include "audiooutput.h"
 #include "demuxer/demux.h"
 #include "decoder/decode.h"
-
+class splayer;
+class playThread:public QObject
+{
+    Q_OBJECT
+public:
+    playThread(splayer *player,AVMediaType type);
+    ~playThread(){}
+private:
+    AVMediaType mMediaType;
+    splayer* mPlayer;
+public slots:
+    void play_loop();
+};
 class splayer: public QObject{
     Q_OBJECT
 public:
@@ -24,6 +36,8 @@ private:
     decode* decoder;
     AVFormatContext *fmt_ctx;
     QWidget *parent;
+
+friend class playThread;
 
 };
 #endif

@@ -9,41 +9,42 @@ worker::worker(packetqueue *pkt_q, framequeue *frame_q,AVCodecContext *dec_Ctx){
 
 void worker::work_thread(){
         int ret;
+        AVFrame *frame = av_frame_alloc();
+
         while(1){
             while(p_q->size() == 0) QThread::usleep(20000);
 
           //  AVPacket *pkt = NULL;
             AVPacket pkt= p_q->get();
             qDebug() << "LIST SIZE" << p_q->size();
-           // if( NULL != pkt){
 
-               ret = avcodec_send_packet(dec_ctx, &pkt);
-               qDebug() << "avcodec_send_packet ret" << ret;
-               //if(ret < 0){
-               //     qDebug() << "avcodec_send_packet error ret" << ret;
-               //     exit(1);
-               //}
+           ret = avcodec_send_packet(dec_ctx, &pkt);
+           qDebug() << "avcodec_send_packet ret" << ret;
+           if(ret < 0){
+                qDebug() << "avcodec_send_packet error ret" << ret;
+               exit(1);
+           }
+
+           // must try to avcodec_receive_frame several times
+           while(ret >= 0){
+                ret = avcodec_receive_frame(dec_ctx, frame);
+                if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+                    break;
+                else if(ret < 0){
+                    qDebug() << "receive frame error!";
+                    exit(0);
+                }
+                Frame *f = NULL;
+                while(f == NULL){
+                   QThread::usleep(2000);
+                   f = f_q->getEmptyFrame();
+                }
+                av_frame_move_ref(f->af, frame);
+                f_q->put();
+
+           }
 
 
-               // must try to avcodec_receive_frame several times
-               while(ret >= 0){
-                   qDebug() << "avcodec_receive_frame 111111";
-                   Frame *frame = NULL;
-                   while(frame == NULL){
-                      frame = f_q->getEmptyFrame();
-                   }
-                    qDebug() << "avcodec_receive_frame 2222";
-                    ret = avcodec_receive_frame(dec_ctx, frame->af);
-                    if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
-                        break;
-                    else if(ret < 0){
-                        qDebug() << "receive frame error!";
-                        exit(0);
-                    }
-                    f_q->put();
-               }
-               qDebug() << "avcodec_receive_frame END" ;
-          //  }
         }
 }
 decode::decode()
@@ -111,14 +112,14 @@ int decode::start(AVFormatContext *fmtCtx){
     qDebug() << "decode::start";
     int audioStreamIdx = 0;
     int videoStreamIdx = 0;
-   // ret = openCodec(&videoStreamIdx,&video_decCtx,fmtCtx,AVMEDIA_TYPE_VIDEO);
-   // qDebug() << "openCodec: video ret " << ret;
+    ret = openCodec(&videoStreamIdx,&video_decCtx,fmtCtx,AVMEDIA_TYPE_VIDEO);
+    qDebug() << "openCodec: video ret " << ret;
 
 
     ret = openCodec(&audioStreamIdx,&audio_decCtx,fmtCtx,AVMEDIA_TYPE_AUDIO);
     qDebug() << "openCodec: audio ret " << ret;
 
-    /*
+/**/
     QThread* video_thread = new QThread;
     worker *videoWorker = new worker(video_packq,video_frame_q,video_decCtx);
     videoWorker->moveToThread(video_thread);
@@ -127,7 +128,7 @@ int decode::start(AVFormatContext *fmtCtx){
     video_thread->start();
 
     qDebug() << "!!!!!!!!!start video thread done " ;
-*/
+
 /**/
     QThread* audio_thread = new QThread;
     worker *audioWorker = new worker(audio_packq,audio_frame_q,audio_decCtx);

@@ -1,5 +1,89 @@
-#include "mediaplayer/player.h"
+ #include "mediaplayer/player.h"
 #include <QFile>
+playThread::playThread(splayer *player,AVMediaType type):
+    mMediaType(type),
+    mPlayer(player)
+{
+
+
+}
+void playThread::play_loop(){
+    while(1){
+    if(mMediaType == AVMEDIA_TYPE_VIDEO){
+        Frame* vframe;
+        while(1){
+            vframe = mPlayer->decoder->video_frame_q->getAFullFrame();
+            if(vframe){
+                //qDebug() << "get a full video frame!!!!!!!!!!!!!!!!!!!!";
+                break;
+            }
+            QThread::usleep(20000);
+        }
+        mPlayer->glwidget->slotShowYuv(vframe->af->data[0],vframe->af->data[1],vframe->af->data[2],1920,1080);
+
+    }else if(mMediaType == AVMEDIA_TYPE_AUDIO){
+            qDebug() << "start audio play loop";
+            Frame* aframe = NULL;
+            while(1){
+                aframe = mPlayer->decoder->audio_frame_q->getAFullFrame();
+                if(aframe != NULL){
+                    qDebug() << "get a full audio frame!!!!!!!!!!!!!!!!!!!!";
+                    break;
+               }
+                QThread::usleep(20000);
+            }
+            int data_size = av_get_bytes_per_sample(mPlayer->decoder->audio_decCtx->sample_fmt);
+            if (data_size < 0) {
+                qDebug() << "get size error";
+                break;
+            }
+
+            qDebug() << "@@@@@@@@@sample size" << data_size;
+            qDebug() << "@@@@@@@@@decoder->audio_decCtx->channels  " << aframe->af->channels;
+            qDebug() << "@@@@@@@@@aframe->af->nb_samples  " << aframe->af->nb_samples;
+            //int size = aframe->af->nb_samples * data_size * aframe->af->channels;
+            int size = aframe->af->nb_samples * data_size;
+            qDebug() << "@@@@@@@@@total size" << size;
+
+
+            if (size <= 0) continue;
+
+            char buf[size];
+            int sum = 0;
+            qDebug()  << "audio format is " << av_sample_fmt_is_planar((AVSampleFormat)aframe->af->format);
+            int isplanar =  false;//av_sample_fmt_is_planar((AVSampleFormat)aframe->af->format);
+
+            if(isplanar){
+                for(int i = 0 ; i < aframe->af->nb_samples ; i++){
+                                qDebug() << "sum" << sum;
+                    for (int ch = 0; ch < mPlayer->decoder->audio_decCtx->channels; ch++)
+                     {
+                       if(!aframe->af->data[ch]){
+                            qDebug() << "pointer is NULL !!! SUM :" << sum;
+                            continue;
+                         }
+                         memcpy(buf+sum, aframe->af->data[ch] + data_size*i,data_size);
+                         sum+=data_size;
+                     }
+
+                }
+            }else{
+                // some avframe contains null data
+                if(!aframe->af->data[0]){
+                    qDebug() << "DATA 0 IS NUll";
+                    continue;
+                }
+                memcpy(buf,aframe->af->data[0],size);
+
+            }
+            qDebug() << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!audio pts" <<aframe->af->pts;
+            mPlayer->audioOut->playRawAudio(QByteArray(buf,size));
+            mPlayer->decoder->audio_frame_q->pop();
+            QThread::usleep(17000);
+
+        }
+    }
+}
 splayer::splayer(glyuvwidget2* glw){
     demuxer = new demux();
     decoder = new decode();
@@ -8,145 +92,39 @@ splayer::splayer(glyuvwidget2* glw){
     decoder->subtitle_packq =  demuxer->subtitle_packq;
     fmt_ctx = demuxer->fmtCtx;
     glwidget = glw;
-
 }
 splayer::~splayer(){
 
 
 }
-/*
-QByteArray generatePCM()
-{
-    //幅度，因为sampleSize = 16bit
-    qint16 amplitude = INT16_MAX;
-    //单声道
-    int channels = 1;
-    //采样率
-    int samplerate = 8000;
-    //持续时间ms
-    int duration = 20;
-    //总样本数
-    int n_samples = int(channels * samplerate * (duration / 1000.0));
-    //声音频率
-    int frequency = 100;
 
-    bool reverse = false;
-    QByteArray data;
-    QDataStream out(&data, QIODevice::WriteOnly);
-    out.setByteOrder(QDataStream::LittleEndian);
-    for (int i = 0; i < 1000; i++) {
-        for (int j = 0; j < n_samples; j++) {
-            qreal radians = qreal(2.0 * M_PI * j  * frequency / qreal(samplerate));
-            qint16 sample = qint16(qSin(radians) * amplitude);
-            out << sample;
-        }
-
-        if (!reverse) {
-            if (frequency < 2000) {
-                frequency += 100;
-            } else reverse = true;
-        } else {
-            if (frequency > 100) {
-                frequency -= 100;
-            } else reverse = false;
-        }
-    }
-
-    QFile file("raw");
-    file.open(QIODevice::WriteOnly);
-    file.write(data);
-    file.close();
-
-    return data;
-}
-*/
 void splayer::play(){
     decoder->start(fmt_ctx);
     audioOut = new audioOutput();
-   // audioOut->setAudioFormat(QString("audio/pcm"),decoder->audio_decCtx->sample_rate,)
+    //to do ,set audio format
     play_loop();
 }
 void splayer::play_loop(){
-    QFile file("/home/wanghan/test/qpcm.pcm");
-    file.open(QIODevice::ReadWrite);
+    QThread* audio_th = new QThread;
+    playThread *aP =  new playThread(this,AVMEDIA_TYPE_AUDIO);
+    aP->moveToThread(audio_th);
+    connect(audio_th, SIGNAL(started()), aP, SLOT(play_loop()));
+    connect(audio_th, SIGNAL(finished()), aP, SLOT(deleteLater()));
+    audio_th->start();
     while(1){
-/*
         Frame* vframe;
         while(1){
             vframe = decoder->video_frame_q->getAFullFrame();
             if(vframe){
-                qDebug() << "get a full video frame!!!!!!!!!!!!!!!!!!!!";
+                //qDebug() << "get a full video frame!!!!!!!!!!!!!!!!!!!!";
                 break;
             }
             QThread::usleep(20000);
         }
+        qDebug() << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!video pts" <<vframe->af->pts;
         glwidget->slotShowYuv(vframe->af->data[0],vframe->af->data[1],vframe->af->data[2],1920,1080);
-*/
-/**/
-        Frame* aframe = NULL;
-
-        while(1){
-            aframe = decoder->audio_frame_q->getAFullFrame();
-            if(aframe != NULL){
-                qDebug() << "get a full audio frame!!!!!!!!!!!!!!!!!!!!";
-                break;
-           }
-            QThread::usleep(20000);
-        }
-
-        int data_size = av_get_bytes_per_sample(decoder->audio_decCtx->sample_fmt);
-        if (data_size < 0) {
-            qDebug() << "get size error";
-            break;
-        }
-
-        qDebug() << "@@@@@@@@@sample size" << data_size;
-        qDebug() << "@@@@@@@@@decoder->audio_decCtx->channels  " << aframe->af->channels;
-        qDebug() << "@@@@@@@@@aframe->af->nb_samples  " << aframe->af->nb_samples;
-        //int size = aframe->af->nb_samples * data_size * aframe->af->channels;
-        int size = aframe->af->nb_samples * data_size;
-        qDebug() << "@@@@@@@@@total size" << size;
-
-
-        if (size <= 0) continue;
-
-        char buf[size];
-        int sum = 0;
-        qDebug()  << "audio format is " << av_sample_fmt_is_planar((AVSampleFormat)aframe->af->format);
-        int isplanar =  false;//av_sample_fmt_is_planar((AVSampleFormat)aframe->af->format);
-
-        if(isplanar){
-            for(int i = 0 ; i < aframe->af->nb_samples ; i++){
-                            qDebug() << "sum" << sum;
-                for (int ch = 0; ch < decoder->audio_decCtx->channels; ch++)
-                 {
-                   if(!aframe->af->data[ch]){
-                        qDebug() << "pointer is NULL !!! SUM :" << sum;
-                        continue;
-                     }
-                    qDebug() << "strlen : " << strlen((char *)aframe->af->data[ch]);
-
-                     memcpy(buf+sum, aframe->af->data[ch] + data_size*i,data_size);
-                     qDebug() << "play loop bbb222";
-                     sum+=data_size;
-                 }
-
-            }
-        }else{
-            // some avframe contains null data
-            if(!aframe->af->data[0]){
-                qDebug() << "DATA 0 IS NUll";
-                continue;
-            }
-
-            //qDebug() << "data 0 size" << strlen((char *)aframe->af->data[0]);
-            memcpy(buf,aframe->af->data[0],size);
-
-        }
-        file.write(buf,size);
-     //   audioOut->playRawAudio(QByteArray(buf));
-     //   QThread::usleep(20000);
-
+        decoder->video_frame_q->pop();
+        QThread::usleep(20000);
     }
 }
 void splayer::pause(){
@@ -168,7 +146,7 @@ void splayer::prepare(QString file){
     QThread* thread = new QThread;
 
     char path[64];
-    sprintf(path,"/home/wanghan/test/sample.mp4");
+    sprintf(path,"/home/wanghan/test/2000s.mp4");
     int ret  = demuxer->openFile(QString(path));
     qDebug() << "openfile ret " << ret;
     demuxer->moveToThread(thread);

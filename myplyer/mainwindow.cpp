@@ -31,7 +31,7 @@ MainWindow::~MainWindow()
 }
 void MainWindow::btclicked(){
     char path[64];
-    sprintf(path,"/home/wanghan/test/100s.mp4");
+    sprintf(path,"/home/wanghan/test/base.mp4");
 
     splayer *player = new  splayer(glw);
     player->prepare(QString(path));

@@ -1,9 +1,10 @@
 #ifndef AUDIOOUTPUT_H
 #define AUDIOOUTPUT_H
-
+#include <QFile>
 #include <QObject>
 #include <QAudioOutput>
 #include <QTimer>
+#include <QIODevice>
 #include "audiodevice.h"
 class audioOutput : public QObject
 {
@@ -21,7 +22,9 @@ public:
 private:
     QAudioFormat format;
     QAudioOutput *output;
-    audioDevice *device;
+//    audioDevice *device;
+    QIODevice *device;
+    //QFile sourceFile;
 };
 
 #endif // AUDIOOUTPUT_H

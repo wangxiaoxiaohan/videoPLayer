@@ -35,20 +35,18 @@ int demux::read_thread(){
     qDebug() << "read_thread 1111";
 
     AVPacket pkt;
-   // av_init_packet(&pkt);
-   // pkt.data = NULL;
-   // pkt.size = 0;
 
-    qDebug() << "read_thread 222";
     audio_steam_index = av_find_best_stream(fmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
 
     video_steam_index = av_find_best_stream(fmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
 
     subtitle_steam_index = av_find_best_stream(fmtCtx, AVMEDIA_TYPE_SUBTITLE, -1, -1, NULL, 0);
-    qDebug() << "read_thread 33333";
+
+    qDebug() << "aduio time_base den:" << fmtCtx->streams[audio_steam_index]->time_base.den << "audio time_base num:" << fmtCtx->streams[audio_steam_index]->time_base.num ;
+    qDebug() << "video time_base den:" << fmtCtx->streams[video_steam_index]->time_base.den << "video time_base num:" << fmtCtx->streams[video_steam_index]->time_base.num ;
     while(1){
         if(fmtCtx){
-            if(audio_packq->size() > 500) QThread::usleep(1000);
+            if((audio_packq->size() > 1000) || video_packq->size() > 500 ) QThread::usleep(3000);
            //  if(video_packq->size() > 500) QThread::usleep(10000);
             int ret = av_read_frame(fmtCtx,&pkt);
             if(ret < 0) continue;
@@ -56,10 +54,11 @@ int demux::read_thread(){
                // qDebug() << "read an audio packet size:" << audio_packq->size();
 
                 audio_packq->put(&pkt);
+                qDebug() << "audio pkt pts" << pkt.pts;
             }else if(pkt.stream_index == video_steam_index){
                // qDebug() << "PUT LIST SIZE" << video_packq->size();
 
-               // video_packq->put(&pkt);
+                video_packq->put(&pkt);
               // qDebug() << "read a video packet size:" << pkt.size;
             }else{
               // subtitle_packq->put(&pkt);
