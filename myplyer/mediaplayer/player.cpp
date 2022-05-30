@@ -24,14 +24,8 @@ void playThread::play_loop(){
     }else if(mMediaType == AVMEDIA_TYPE_AUDIO){
             qDebug() << "start audio play loop";
             Frame* aframe = NULL;
-            while(1){
-                aframe = mPlayer->decoder->audio_frame_q->getAFullFrame();
-                if(aframe != NULL){
-                    qDebug() << "get a full audio frame!!!!!!!!!!!!!!!!!!!!";
-                    break;
-               }
-                QThread::usleep(20000);
-            }
+            aframe = mPlayer->decoder->audio_frame_q->getAFullFrame();
+
             int data_size = av_get_bytes_per_sample(mPlayer->decoder->audio_decCtx->sample_fmt);
             if (data_size < 0) {
                 qDebug() << "get size error";
@@ -50,7 +44,7 @@ void playThread::play_loop(){
 
             char buf[size];
             int sum = 0;
-            qDebug()  << "audio format is " << av_sample_fmt_is_planar((AVSampleFormat)aframe->af->format);
+            //qDebug()  << "audio format is " << av_sample_fmt_is_planar((AVSampleFormat)aframe->af->format);
             int isplanar =  false;//av_sample_fmt_is_planar((AVSampleFormat)aframe->af->format);
 
             if(isplanar){
@@ -77,10 +71,17 @@ void playThread::play_loop(){
 
             }
             qDebug() << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!audio pts" <<aframe->af->pts;
-            mPlayer->audioOut->playRawAudio(QByteArray(buf,size));
-            mPlayer->decoder->audio_frame_q->pop();
-            QThread::usleep(17000);
 
+            double sleeptime = 1000000 * aframe->af->nb_samples * mPlayer->audio_timebase.num / mPlayer->audio_timebase.den;
+            qDebug() << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!audio sleep us:" <<sleeptime;
+            QThread::usleep(sleeptime);
+
+
+            mPlayer->audioOut->playRawAudio(QByteArray(buf,size));
+            mPlayer->audio_clock = aframe->af->pts;
+
+
+            mPlayer->decoder->audio_frame_q->pop();
         }
     }
 }
@@ -92,6 +93,8 @@ splayer::splayer(glyuvwidget2* glw){
     decoder->subtitle_packq =  demuxer->subtitle_packq;
     fmt_ctx = demuxer->fmtCtx;
     glwidget = glw;
+    audio_clock = 0;
+    video_clock = 0;
 }
 splayer::~splayer(){
 
@@ -113,18 +116,34 @@ void splayer::play_loop(){
     audio_th->start();
     while(1){
         Frame* vframe;
+        vframe = decoder->video_frame_q->getAFullFrame();
+
+        if(video_clock == 0 ) video_clock = vframe->af->pts;
+
+        double duration = 1000000 * (vframe->af->pts - video_clock)  * video_timebase.num / video_timebase.den;
+        qDebug() << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!video sleep us:" <<duration;
+
         while(1){
-            vframe = decoder->video_frame_q->getAFullFrame();
-            if(vframe){
-                //qDebug() << "get a full video frame!!!!!!!!!!!!!!!!!!!!";
-                break;
+            double deviation = video_clock / video_timebase.den - audio_clock / audio_timebase.den;
+            if(abs(deviation) < duration) break;
+            if(deviation< 0){
+                decoder->video_frame_q->pop();
+                vframe = decoder->video_frame_q->getAFullFrame();
+            }else{
+                glwidget->slotShowYuv(vframe->af->data[0],vframe->af->data[1],vframe->af->data[2],1920,1080);
+                QThread::usleep(duration);
+
             }
-            QThread::usleep(20000);
+            video_clock = vframe->af->pts;
+
         }
-        qDebug() << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!video pts" <<vframe->af->pts;
+
+        QThread::usleep(duration);
         glwidget->slotShowYuv(vframe->af->data[0],vframe->af->data[1],vframe->af->data[2],1920,1080);
+        video_clock = vframe->af->pts;
         decoder->video_frame_q->pop();
-        QThread::usleep(20000);
+
+
     }
 }
 void splayer::pause(){
@@ -148,7 +167,12 @@ void splayer::prepare(QString file){
     char path[64];
     sprintf(path,"/home/wanghan/test/2000s.mp4");
     int ret  = demuxer->openFile(QString(path));
-    qDebug() << "openfile ret " << ret;
+    audio_timebase = demuxer->fmtCtx->streams[demuxer->audio_steam_index]->time_base;
+    video_timebase = demuxer->fmtCtx->streams[demuxer->video_steam_index]->time_base;
+
+    qDebug() << "aduio time_base den:" << audio_timebase.den << "audio time_base num:" << audio_timebase.num ;
+    qDebug() << "video time_base den:" << video_timebase.den << "video time_base num:" << video_timebase.num ;
+
     demuxer->moveToThread(thread);
     //connect(demuxer, SIGNAL(error(QString)), this, SLOT(errorString(QString)));
 

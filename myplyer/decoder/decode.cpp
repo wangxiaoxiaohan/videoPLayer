@@ -39,6 +39,7 @@ void worker::work_thread(){
                    QThread::usleep(2000);
                    f = f_q->getEmptyFrame();
                 }
+                f->pts = frame->pts;
                 av_frame_move_ref(f->af, frame);
                 f_q->put();
 

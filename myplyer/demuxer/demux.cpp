@@ -18,6 +18,11 @@ int demux::openFile(QString path){
         qDebug() << "Could not find stream information";
         exit(1);
     }
+    audio_steam_index = av_find_best_stream(fmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
+
+    video_steam_index = av_find_best_stream(fmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
+
+    subtitle_steam_index = av_find_best_stream(fmtCtx, AVMEDIA_TYPE_SUBTITLE, -1, -1, NULL, 0);
 
 }
 
@@ -36,14 +41,14 @@ int demux::read_thread(){
 
     AVPacket pkt;
 
+    /*
     audio_steam_index = av_find_best_stream(fmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
 
     video_steam_index = av_find_best_stream(fmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
 
     subtitle_steam_index = av_find_best_stream(fmtCtx, AVMEDIA_TYPE_SUBTITLE, -1, -1, NULL, 0);
+    */
 
-    qDebug() << "aduio time_base den:" << fmtCtx->streams[audio_steam_index]->time_base.den << "audio time_base num:" << fmtCtx->streams[audio_steam_index]->time_base.num ;
-    qDebug() << "video time_base den:" << fmtCtx->streams[video_steam_index]->time_base.den << "video time_base num:" << fmtCtx->streams[video_steam_index]->time_base.num ;
     while(1){
         if(fmtCtx){
             if((audio_packq->size() > 1000) || video_packq->size() > 500 ) QThread::usleep(3000);

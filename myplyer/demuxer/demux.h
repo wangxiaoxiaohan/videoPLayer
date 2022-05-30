@@ -19,14 +19,15 @@ private:
     int findStreamInfo();
 
 
-    int audio_steam_index;
-    int video_steam_index;
     int subtitle_steam_index;
 public slots:
     int read_thread();
 signals:
 
 public:
+
+    int audio_steam_index;
+    int video_steam_index;
     packetqueue *video_packq;
     packetqueue *audio_packq;
     packetqueue *subtitle_packq;

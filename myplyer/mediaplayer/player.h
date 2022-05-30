@@ -36,6 +36,10 @@ private:
     decode* decoder;
     AVFormatContext *fmt_ctx;
     QWidget *parent;
+    double audio_clock;
+    double video_clock;
+    AVRational audio_timebase;
+    AVRational video_timebase;
 
 friend class playThread;
 
