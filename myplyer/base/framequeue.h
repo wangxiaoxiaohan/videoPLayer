@@ -26,7 +26,7 @@ public:
 
 private:
     QMutex mutex;
-    QQueue<Frame> frame_queue;
+    QQueue<Frame *> frame_queue;
     QWaitCondition condition;
 
     int maxsize;

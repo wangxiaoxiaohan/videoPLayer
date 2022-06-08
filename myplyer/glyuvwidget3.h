@@ -16,7 +16,7 @@ public:
     glyuvwidget2(QWidget *parent);
     ~glyuvwidget2();
 
-public:
+public slots:
     void slotShowYuv(uchar *ptr_y,uchar *ptr_u,uchar *ptr_v,uint width, uint height); //显示一帧Yuv图像
 protected:
     void initializeGL() Q_DECL_OVERRIDE;

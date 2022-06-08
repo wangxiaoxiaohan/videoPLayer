@@ -20,8 +20,10 @@ private:
     framequeue *f_q;
     packetqueue *p_q;
     AVCodecContext *dec_ctx;
+    bool quit_flag;
 public slots:
     void work_thread();
+    void quit_thread();
 };
 
 class decode:public QObject
@@ -31,6 +33,7 @@ public:
     decode();
     ~decode(){}
     int start(AVFormatContext *fmtCtx);
+    void stop();
     int openCodec(int *stream_idx,
                   AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx, enum AVMediaType type);
     int decodePacket(AVCodecContext *avctx, AVPacket *packet,AVFrame *frame);
@@ -48,12 +51,17 @@ public:
     AVCodecContext *audio_decCtx;
 private:
 
-    uint8_t *video_dst_data[4] = {NULL};
-    int      video_dst_linesize[4];
+    QThread* video_thread;
+    QThread* audio_thread;
+    worker *videoWorker;
+    worker *audioWorker;
 public:
     packetqueue *video_packq;
     packetqueue *audio_packq;
     packetqueue *subtitle_packq;
+signals:
+    void quitAudioThread();
+    void quitVideoThread();
 };
 
 #endif // DECODE_H

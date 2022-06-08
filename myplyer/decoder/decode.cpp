@@ -1,30 +1,34 @@
  #include "decoder/decode.h"
 #include <QDebug>
-
+#include <QCoreApplication>
 worker::worker(packetqueue *pkt_q, framequeue *frame_q,AVCodecContext *dec_Ctx){
         p_q = pkt_q;
         f_q = frame_q;
         dec_ctx = dec_Ctx;
+        quit_flag = false;
 }
-
+void worker::quit_thread(){
+    qDebug() << "receive quit signal";
+    quit_flag = true;
+}
 void worker::work_thread(){
         int ret;
         AVFrame *frame = av_frame_alloc();
 
-        while(1){
+        while(!quit_flag){
+
             while(p_q->size() == 0) QThread::usleep(20000);
 
-          //  AVPacket *pkt = NULL;
-            AVPacket pkt= p_q->get();
-            qDebug() << "LIST SIZE" << p_q->size();
+           AVPacket pkt;
+           p_q->get(&pkt);
 
            ret = avcodec_send_packet(dec_ctx, &pkt);
-           qDebug() << "avcodec_send_packet ret" << ret;
+           //qDebug() << "avcodec_send_packet ret" << ret;
            if(ret < 0){
                 qDebug() << "avcodec_send_packet error ret" << ret;
                exit(1);
            }
-
+           av_packet_unref(&pkt);
            // must try to avcodec_receive_frame several times
            while(ret >= 0){
                 ret = avcodec_receive_frame(dec_ctx, frame);
@@ -34,19 +38,15 @@ void worker::work_thread(){
                     qDebug() << "receive frame error!";
                     exit(0);
                 }
-                Frame *f = NULL;
-                while(f == NULL){
-                   QThread::usleep(2000);
-                   f = f_q->getEmptyFrame();
-                }
+                Frame *f = f_q->getEmptyFrame();
                 f->pts = frame->pts;
                 av_frame_move_ref(f->af, frame);
+                av_frame_unref(frame);
                 f_q->put();
-
            }
-
-
+            QCoreApplication::processEvents(QEventLoop::AllEvents,100);
         }
+        av_frame_free(&frame);
 }
 decode::decode()
 {
@@ -54,6 +54,9 @@ decode::decode()
     video_frame_q = new framequeue();
     audio_frame_q = new framequeue();
     subtitle_frame_q = new framequeue();
+    video_thread = new QThread;
+    audio_thread = new QThread;
+    videoWorker = new worker(video_packq,video_frame_q,video_decCtx);
 }
 
 enum AVPixelFormat decode::getPixfmt(){
@@ -120,25 +123,34 @@ int decode::start(AVFormatContext *fmtCtx){
     ret = openCodec(&audioStreamIdx,&audio_decCtx,fmtCtx,AVMEDIA_TYPE_AUDIO);
     qDebug() << "openCodec: audio ret " << ret;
 
-/**/
-    QThread* video_thread = new QThread;
-    worker *videoWorker = new worker(video_packq,video_frame_q,video_decCtx);
+
+
+    videoWorker = new worker(video_packq,video_frame_q,video_decCtx);
     videoWorker->moveToThread(video_thread);
     connect(video_thread, SIGNAL(started()), videoWorker, SLOT(work_thread()));
+    connect(this, SIGNAL(quitVideoThread()), videoWorker, SLOT(quit_thread()));
     connect(video_thread, SIGNAL(finished()), videoWorker, SLOT(deleteLater()));
+    //connect(video_thread, SIGNAL(finished()), video_thread, SLOT(deleteLater()));
     video_thread->start();
 
-    qDebug() << "!!!!!!!!!start video thread done " ;
 
-/**/
-    QThread* audio_thread = new QThread;
-    worker *audioWorker = new worker(audio_packq,audio_frame_q,audio_decCtx);
+
+    audioWorker = new worker(audio_packq,audio_frame_q,audio_decCtx);
     audioWorker->moveToThread(audio_thread);
     connect(audio_thread, SIGNAL(started()), audioWorker, SLOT(work_thread()));
+    connect(this, SIGNAL(quitAudioThread()), audioWorker, SLOT(quit_thread()));
     connect(audio_thread, SIGNAL(finished()), audioWorker, SLOT(deleteLater()));
+    //connect(audio_thread, SIGNAL(finished()), audio_thread, SLOT(deleteLater()));
     audio_thread->start();
-    qDebug() << "!!!!!!!!!start audio thread done " ;
 
 
 }
+void decode::stop(){
+    //audio_thread->quit();
+    //video_thread->quit();
+    emit quitVideoThread();
+    emit quitAudioThread();
+
+}
+
 

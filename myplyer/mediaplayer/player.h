@@ -14,8 +14,15 @@ public:
 private:
     AVMediaType mMediaType;
     splayer* mPlayer;
+signals:
+    void signalShowYuv(uchar *ptr_y,uchar *ptr_u,uchar *ptr_v,uint width, uint height);
 public slots:
     void play_loop();
+};
+enum mediaStatus{
+    media_stopped = 0,
+    media_playing,
+    media_paused,
 };
 class splayer: public QObject{
     Q_OBJECT
@@ -29,6 +36,7 @@ public:
     void setPlayRate();
     void prepare(QString file);
     void play_loop();
+    enum mediaStatus mediaStatus();
 private:
     glyuvwidget2* glwidget;
     audioOutput* audioOut;
@@ -40,7 +48,10 @@ private:
     double video_clock;
     AVRational audio_timebase;
     AVRational video_timebase;
-
+    enum mediaStatus mMediaStatus;
+    QWaitCondition condition;
+    QMutex mutex;
+    QThread* demuxThread;
 friend class playThread;
 
 };

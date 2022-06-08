@@ -30,6 +30,6 @@ void audioOutput::setAudioFormat(QString codec,int smapleRate,int sampleSize,int
 
 }
 void audioOutput::playRawAudio(QByteArray data){
-    qDebug() << "data size" << data.size();
+   // qDebug() << "data size" << data.size();
     device->write(data.data(),data.length());
 }

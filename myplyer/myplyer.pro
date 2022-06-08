@@ -74,3 +74,6 @@ else:unix: LIBS += -L$$PWD/../ffmpeg_install_dir/lib/ -lavutil -lavcodec -lavfor
 
 INCLUDEPATH += $$PWD/../ffmpeg_install_dir/include
 DEPENDPATH += $$PWD/../ffmpeg_install_dir/include
+
+RESOURCES += \
+    images.qrc

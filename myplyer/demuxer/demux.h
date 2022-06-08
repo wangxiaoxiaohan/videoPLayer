@@ -7,23 +7,37 @@ extern "C"{
 #include <libavformat/avformat.h>
 }
 #include <base/packetqueue.h>
+class demux;
+class demuxWorker:public QObject
+{
+    Q_OBJECT
+public:
+    demuxWorker(demux *demuxer);
+    ~demuxWorker(){}
 
+public slots:
+    void work_thread();
+    void quit_thread();
+private:
+    demux *mDemuxer;
+    bool quit_flag;
+};
 class demux : public QObject
 {
     Q_OBJECT
 public:
     demux();
-    int srart(QString uri);
+    int srart(QString file);
+    int stop();
     int openFile(QString path);
 private:
     int findStreamInfo();
-
-
-    int subtitle_steam_index;
+    QThread* demuxThread;
+    demuxWorker *worker;
 public slots:
     int read_thread();
 signals:
-
+    void quitDemuxThread();
 public:
 
     int audio_steam_index;
