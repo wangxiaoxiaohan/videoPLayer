@@ -72,3 +72,17 @@ int packetqueue::size(){
 int packetqueue::size(){
     return packet_queue.size;
 }
+void packetqueue::clear(){
+    mutex.lock();
+    while(packet_queue.first != packet_queue.last){
+        Packet_Node *node = packet_queue.first;
+        packet_queue.first = node ->next;
+        av_free(node);
+    }
+    //av_packet_unref(&packet_queue.first->packt);
+    av_free(packet_queue.first);
+    packet_queue.size = 0;
+    packet_queue.first = NULL;
+    packet_queue.last = NULL;
+    mutex.unlock();
+}

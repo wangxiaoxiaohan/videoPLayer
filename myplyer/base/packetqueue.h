@@ -31,6 +31,7 @@ public:
     AVPacket get(AVPacket *pkt);
     void put(AVPacket *pkt);
     int size();
+    void clear();
 private:
     int list_size;
     Packet_queue packet_queue;

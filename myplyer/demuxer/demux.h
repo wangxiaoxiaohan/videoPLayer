@@ -13,11 +13,11 @@ class demuxWorker:public QObject
     Q_OBJECT
 public:
     demuxWorker(demux *demuxer);
-    ~demuxWorker(){}
+    ~demuxWorker();
 
 public slots:
     void work_thread();
-    void quit_thread();
+    void quit_threag_flag();
 private:
     demux *mDemuxer;
     bool quit_flag;
@@ -27,7 +27,7 @@ class demux : public QObject
     Q_OBJECT
 public:
     demux();
-    int srart(QString file);
+    int start(QString file);
     int stop();
     int openFile(QString path);
 private:

@@ -22,7 +22,8 @@ public:
     void put();
     Frame* getAFullFrame();
     void pop();
-
+    void clear();
+    void debug();
 
 private:
     QMutex mutex;

@@ -36,7 +36,8 @@ SOURCES += \
     base/packetqueue.cpp \
     glyuvwidget3.cpp \
     audiooutput.cpp \
-    audiodevice.cpp
+    audiodevice.cpp \
+    widget/mediatime.cpp
 
 
 
@@ -55,7 +56,8 @@ HEADERS += \
     mediaplayer/player.h \
     glyuvwidget3.h \
     audiooutput.h \
-    audiodevice.h
+    audiodevice.h \
+    widget/mediatime.h
 
 
 FORMS += \

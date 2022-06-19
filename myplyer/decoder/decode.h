@@ -15,7 +15,7 @@ class worker:public QObject
     Q_OBJECT
 public:
     worker(packetqueue *pkt_q, framequeue *frame_q,AVCodecContext *dec_Ctx);
-    ~worker(){}
+    ~worker();
 private:
     framequeue *f_q;
     packetqueue *p_q;

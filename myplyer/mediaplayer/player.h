@@ -20,7 +20,8 @@ public slots:
     void play_loop();
 };
 enum mediaStatus{
-    media_stopped = 0,
+    media_idle = 0,
+    media_stopped,
     media_playing,
     media_paused,
 };
@@ -36,7 +37,10 @@ public:
     void setPlayRate();
     void prepare(QString file);
     void play_loop();
+    void reset();
     enum mediaStatus mediaStatus();
+signals:
+    void updateProgress(int current,int total);
 private:
     glyuvwidget2* glwidget;
     audioOutput* audioOut;
@@ -51,7 +55,8 @@ private:
     enum mediaStatus mMediaStatus;
     QWaitCondition condition;
     QMutex mutex;
-    QThread* demuxThread;
+   // QThread* demuxThread;
+    QThread* audio_th;
 friend class playThread;
 
 };
