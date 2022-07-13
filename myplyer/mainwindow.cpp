@@ -5,6 +5,8 @@
 #include <QPixmap>
 #include <QFileDialog>
 #include <QTimeEdit>
+
+
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent)
 {
@@ -23,12 +25,23 @@ MainWindow::MainWindow(QWidget *parent) :
     played = new MediaTime(this);
     played->setGeometry(0,1080 + margin * 1,timeWidth,15);
 
-    progress = new QProgressBar(this);
-    progress->setGeometry(margin + timeWidth,1080 + margin * 1,1920 - margin * 2 - timeWidth,10);
-    progress->show();
-    progress->setRange(0,1000);
-    progress->setMinimum(0);
-    progress->setMaximum(1000);
+
+    slider = new mySlider(this);
+    slider->setGeometry(margin + timeWidth,1080 + margin * 1,1920 - margin * 2 - timeWidth,25);
+    slider->setRange(0,1000);
+    slider->setMinimum(0);
+    slider->setMaximum(1000);
+    slider->setOrientation(Qt::Horizontal);
+    slider->setStyleSheet(
+    "QSlider::groove:horizontal{height:2px;background-color:rgb(219,219,219);}\
+    QSlider::handle:horizontal{width:16px;background-color:rgb(128,128,128);margin:-7px 0px -7px 0px;border-radius:8px;}\
+    QSlider::add-page:horizontal{background-color:rgb(219,219,219);}\
+    QSlider::sub-page:horizontal{background-color:rgb(26,217,110);}"
+
+    );
+
+    connect(slider,SIGNAL(releaseProgress(double)),this,SLOT(progressChanged(double)));
+
 
 
     play_pause =new QPushButton(this);
@@ -52,10 +65,23 @@ MainWindow::MainWindow(QWidget *parent) :
     open->show();
     connect(open,SIGNAL(clicked()),this,SLOT(open_btclicked()));
 
+    decreaseSpeed = new QPushButton(this);
+    decreaseSpeed->setGeometry((50 + margin) * 3,1080 + margin * 3,50,50);
+    decreaseSpeed->setIcon(QIcon(QPixmap(":/new/prefix1/images/decreaseSpeed.png")));
+    decreaseSpeed->setIconSize(QSize(50,50));
+    connect(decreaseSpeed,SIGNAL(clicked()),this,SLOT(decreaseSpeedSlot()));
+
+    playSpeedLabel = new QLabel(this);
+    playSpeedLabel->setGeometry((50 + margin) * 4,1080 + margin * 3,50,50);
+    playSpeedLabel->setAlignment(Qt::AlignCenter);
+
+    increaseSpeed = new QPushButton(this);
+    increaseSpeed->setGeometry((50 + margin) * 5,1080 + margin * 3,50,50);
+    increaseSpeed->setIcon(QIcon(QPixmap(":/new/prefix1/images/increaseSpeed.png")));
+    increaseSpeed->setIconSize(QSize(50,50));
+    connect(increaseSpeed,SIGNAL(clicked()),this,SLOT(increaseSpeedSlot()));
     totalTime = new MediaTime(this);
     totalTime->setGeometry(1920 - margin * 2 - timeWidth,1080 + margin * 3,timeWidth,15);
-
-
 
     mPlayer = new  splayer(glw);
     connect(mPlayer,SIGNAL(updateProgress(int,int)),this,SLOT(updateProgress(int,int)));
@@ -69,8 +95,9 @@ void MainWindow::updateProgress(int current,int total){
     played->setTime(current);
     totalTime->setTime(total);
     double value = ((double)current / (double)total) * 1000;
-    qDebug() << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<< value;
-    progress->setValue(value);
+    //qDebug() << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"<< value;
+    if(!slider->pressed)
+        slider->setValue(value);
 }
 void MainWindow::pp_btclicked(){
     if(mPlayer->mediaStatus() == media_stopped)
@@ -101,4 +128,17 @@ void MainWindow::stop_btclicked(){
 
     mPlayer->stop();
     play_pause->setIcon(QIcon(QPixmap(":/new/prefix1/images/play.png")));
+}
+void MainWindow::increaseSpeedSlot(){
+    mPlayer->setPlayRate(mPlayer->playRate() + 0.1);
+    playSpeedLabel->setText(QString::number(mPlayer->playRate()));
+}
+void MainWindow::decreaseSpeedSlot(){
+    mPlayer->setPlayRate(mPlayer->playRate() - 0.1);
+    playSpeedLabel->setText(QString::number(mPlayer->playRate()));
+}
+void MainWindow::progressChanged(double value){
+
+     mPlayer->seek(value);
+
 }

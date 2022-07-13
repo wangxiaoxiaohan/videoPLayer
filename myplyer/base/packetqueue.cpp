@@ -9,17 +9,6 @@ packetqueue::packetqueue()
 }
 //packetqueue still exist memory lack
 
-/*
-AVPacket packetqueue::get(AVPacket *pkt){
-    printf("packetqueue get\n");
-    mutex.lock();
-    if(!packet_queue.list.empty()){
-        AVPacket *pktl = &packet_queue.list.front();
-        *pkt  = *pktl;
-    }
-    mutex.unlock();
-}
-*/
 AVPacket packetqueue::get(AVPacket *pkt){
    // printf("packetqueue get\n");
     mutex.lock();
@@ -34,16 +23,7 @@ AVPacket packetqueue::get(AVPacket *pkt){
 
     mutex.unlock();
 }
-/*
-void packetqueue::put(AVPacket *pkt){
-     printf("packetqueue put\n");
-    mutex.lock();
 
-    packet_queue.list.push_back(*pkt);
-   // list_size +=1;
-    mutex.unlock();
-}
-*/
 void packetqueue::put(AVPacket *pkt){
    //  printf("packetqueue put\n");
     mutex.lock();
@@ -64,11 +44,7 @@ void packetqueue::put(AVPacket *pkt){
     condition.wakeAll();
     mutex.unlock();
 }
-/*
-int packetqueue::size(){
-    return packet_queue.list.size();
-}
-*/
+
 int packetqueue::size(){
     return packet_queue.size;
 }

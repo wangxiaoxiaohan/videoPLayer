@@ -37,7 +37,8 @@ SOURCES += \
     glyuvwidget3.cpp \
     audiooutput.cpp \
     audiodevice.cpp \
-    widget/mediatime.cpp
+    widget/mediatime.cpp \
+    widget/myslider.cpp
 
 
 
@@ -57,7 +58,8 @@ HEADERS += \
     glyuvwidget3.h \
     audiooutput.h \
     audiodevice.h \
-    widget/mediatime.h
+    widget/mediatime.h \
+    widget/myslider.h
 
 
 FORMS += \

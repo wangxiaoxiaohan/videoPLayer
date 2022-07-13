@@ -3,6 +3,7 @@
 #include <QSharedPointer>
 #include <QThread>
 #include <QQueue>
+#include <QMutex>
 extern "C"{
 #include <libavformat/avformat.h>
 }
@@ -30,12 +31,16 @@ public:
     int start(QString file);
     int stop();
     int openFile(QString path);
+    int seek(double timeStamp);
 private:
     int findStreamInfo();
     QThread* demuxThread;
     demuxWorker *worker;
+    QString url;
+    bool seek_flag;
+    double mTimeStamp;
 public slots:
-    int read_thread();
+
 signals:
     void quitDemuxThread();
 public:
@@ -46,9 +51,12 @@ public:
     packetqueue *audio_packq;
     packetqueue *subtitle_packq;
     AVFormatContext *fmtCtx;
+    QMutex *mutex;
+
 signals:
     void finished();
     void error(QString err);
+friend class demuxWorker;
 };
 
 #endif // DEMUX_H

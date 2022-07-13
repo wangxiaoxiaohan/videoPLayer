@@ -33,8 +33,9 @@ public:
     void play();
     void pause();
     void stop();
-    void seek();
-    void setPlayRate();
+    void seek(double precent);
+    void setPlayRate(double speed);
+    double playRate();
     void prepare(QString file);
     void play_loop();
     void reset();
@@ -42,6 +43,8 @@ public:
 signals:
     void updateProgress(int current,int total);
 private:
+    void stopDecoderDemuxer();
+    void stopState();
     glyuvwidget2* glwidget;
     audioOutput* audioOut;
     demux* demuxer;
@@ -57,6 +60,7 @@ private:
     QMutex mutex;
    // QThread* demuxThread;
     QThread* audio_th;
+    double playSpeed;
 friend class playThread;
 
 };

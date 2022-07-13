@@ -6,5 +6,9 @@
         <file>images/previous.png</file>
         <file>images/stop.png</file>
         <file>images/file-open.png</file>
+        <file>images/decreaseSpeed.png</file>
+        <file>images/increaseSpeed.png</file>
+        <file>images/circle.png</file>
     </qresource>
+    <qresource prefix="/"/>
 </RCC>

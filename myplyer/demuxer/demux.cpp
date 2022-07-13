@@ -26,12 +26,24 @@ void demuxWorker::work_thread(){
             while((mDemuxer->audio_packq->size() > 1000) || mDemuxer->video_packq->size() > 500 ){
                 QThread::usleep(3000);
                 QCoreApplication::processEvents(QEventLoop::AllEvents,100);
-                qDebug() << "packet full!!!";
+                //qDebug() << "packet full!!!";
+            }
+            if(mDemuxer->seek_flag){
+                qDebug() << "demux seek file!!!";
+                mDemuxer->audio_packq->clear();
+                mDemuxer->video_packq->clear();
+                int ret = avformat_seek_file(mDemuxer->fmtCtx, -1, INT64_MIN, mDemuxer->mTimeStamp, INT64_MAX, 0);
+                qDebug() << "demux seek file ret " << ret;
+                qDebug() << "mDemuxer->mTimeStamp" << mDemuxer->mTimeStamp;
+                mDemuxer->seek_flag = false;
             }
             int ret = av_read_frame(mDemuxer->fmtCtx,&pkt);
-            if(ret < 0) continue;
+            if(ret < 0){
+                mDemuxer->mutex->unlock();
+                continue;
+            }
             if(pkt.stream_index == mDemuxer->audio_steam_index){
-                qDebug() << "read an audio packet size:";
+                //qDebug() << "read an audio packet size:";
                 mDemuxer->audio_packq->put(&pkt);
                 //qDebug() << "audio pkt pts" << pkt.pts;
             }else if(pkt.stream_index == mDemuxer->video_steam_index){
@@ -44,6 +56,7 @@ void demuxWorker::work_thread(){
             }
         }
         QCoreApplication::processEvents(QEventLoop::AllEvents,100);
+
     }
     qDebug() << "demux real quit  threading!!!!!!!!!!!";
     avformat_close_input(&mDemuxer->fmtCtx);
@@ -56,6 +69,8 @@ demux::demux()
     video_packq = new packetqueue();
     audio_packq = new packetqueue();
     subtitle_packq = new packetqueue();
+    mutex = new QMutex();
+    mTimeStamp = 0;
 
 }
 int demux::openFile(QString path){
@@ -89,6 +104,8 @@ int demux::findStreamInfo(){
 
 }
 int demux::start(QString file){
+    url = file;
+    seek_flag = false;
     video_packq->clear();
     audio_packq->clear();
 
@@ -111,6 +128,9 @@ int demux::stop(){
     demuxThread->quit();
 
 }
-int demux::read_thread(){
+int demux::seek(double timeStamp){
+    qDebug() << "seek timestamp" << timeStamp;
+    seek_flag = true;
+    mTimeStamp = timeStamp;
 
 }

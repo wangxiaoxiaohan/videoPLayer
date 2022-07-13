@@ -1,4 +1,4 @@
- #include "decoder/decode.h"
+  #include "decoder/decode.h"
 #include <QDebug>
 #include <QCoreApplication>
 worker::worker(packetqueue *pkt_q, framequeue *frame_q,AVCodecContext *dec_Ctx){
@@ -6,11 +6,24 @@ worker::worker(packetqueue *pkt_q, framequeue *frame_q,AVCodecContext *dec_Ctx){
         f_q = frame_q;
         dec_ctx = dec_Ctx;
         quit_flag = false;
+        pause_flag =false;
         qDebug() << "decode worker struct" << dec_ctx->codec_type;
 }
 void worker::quit_thread(){
     qDebug() << "decode receive quit signal";
     quit_flag = true;
+}
+void worker::pause_decode(){
+
+    pause_flag = true;
+    qDebug() << "pause_decode !!!";
+    avcodec_flush_buffers(dec_ctx);
+    // clear frame queue
+    f_q->clear();
+}
+void worker::continue_decode(){
+    qDebug() << "continue decode !!!";
+    pause_flag = false;
 }
 worker::~worker(){
     qDebug() << "decode worker destruct";
@@ -19,17 +32,37 @@ void worker::work_thread(){
         int ret;
         AVFrame *frame = av_frame_alloc();
 
+
         while(!quit_flag){
-            qDebug() << "decoding!!!"<< dec_ctx->codec_type << QThread::currentThreadId();
+            //qDebug() << "decoding!!!"<< dec_ctx->codec_type << QThread::currentThreadId();
+
+
+     if(pause_flag){
+                qDebug() << "wait to continue decode111 !!!";
+                // pause decode
+                while(pause_flag){
+                   qDebug() << "wait to continue decode!!!";
+                   QThread::usleep(20000);
+                   QCoreApplication::processEvents(QEventLoop::AllEvents,100);
+                }
+                // flush decoder
+                //avcodec_send_packet(dec_ctx, NULL);
+                avcodec_flush_buffers(dec_ctx);
+                // clear frame queue
+                f_q->clear();
+
+            }
+
+            // wait packet
             while(p_q->size() == 0){
                // qDebug() << "decoding!!!00000000"<< dec_ctx->codec_type << QThread::currentThreadId();
                QThread::usleep(20000);
                QCoreApplication::processEvents(QEventLoop::AllEvents,100);
             }
-           // qDebug() << "decoding!!!11111111"<< dec_ctx->codec_type << QThread::currentThreadId();
+           qDebug() << "decoding!!!11111111"<< dec_ctx->codec_type << QThread::currentThreadId();
            AVPacket pkt;
            p_q->get(&pkt);
-           // qDebug() << "decoding!!!2222222222"<< dec_ctx->codec_type << QThread::currentThreadId();
+           qDebug() << "decoding!!!2222222222"<< dec_ctx->codec_type << QThread::currentThreadId();
            ret = avcodec_send_packet(dec_ctx, &pkt);
            //qDebug() << "avcodec_send_packet ret" << ret;
            if(ret < 0){
@@ -39,7 +72,6 @@ void worker::work_thread(){
            av_packet_unref(&pkt);
            // must try to avcodec_receive_frame several times
            while(ret >= 0){
-              // qDebug() << "decoding!!!2222222222"<< dec_ctx->codec_type << QThread::currentThreadId();
                 ret = avcodec_receive_frame(dec_ctx, frame);
                 if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
                     break;
@@ -47,20 +79,21 @@ void worker::work_thread(){
                     qDebug() << "receive frame error!";
                     exit(0);
                 }
-                //qDebug() << "decoding!!!333333"<< dec_ctx->codec_type << QThread::currentThreadId();
+                qDebug() << "decoding!!!333333"<< dec_ctx->codec_type << QThread::currentThreadId();
                 Frame *f = f_q->getEmptyFrame();
+                qDebug() << "decoding!!!44444444"<< dec_ctx->codec_type << QThread::currentThreadId();
                 f->pts = frame->pts;
                 av_frame_move_ref(f->af, frame);
                 av_frame_unref(frame);
-                //qDebug() << "decoding!!!44444444"<< dec_ctx->codec_type << QThread::currentThreadId();
+
                 f_q->put();
-               // qDebug() << "decoding!!!555555555"<< dec_ctx->codec_type << QThread::currentThreadId();
+                qDebug() << "decoding!!!555555555"<< dec_ctx->codec_type << QThread::currentThreadId();
                 QCoreApplication::processEvents(QEventLoop::AllEvents,100);
            }
             QCoreApplication::processEvents(QEventLoop::AllEvents,100);
             qDebug() << "decoding!!!6666666666666"<< dec_ctx->codec_type << QThread::currentThreadId();
         }
-        qDebug() << "decode real quit  threading!!!!!!!!!!! type" << dec_ctx->codec_type << QThread::currentThreadId();
+        qDebug() << "decode real quit  threading!!!!!!!! !!! type" << dec_ctx->codec_type << QThread::currentThreadId();
         av_frame_free(&frame);
         avcodec_free_context(&dec_ctx);
         f_q->clear();
@@ -152,6 +185,8 @@ int decode::start(AVFormatContext *fmtCtx){
     connect(this, SIGNAL(quitVideoThread()), videoWorker, SLOT(quit_thread()),Qt::DirectConnection);
     connect(video_thread, SIGNAL(finished()), videoWorker, SLOT(deleteLater()));
     connect(video_thread, SIGNAL(finished()), video_thread, SLOT(deleteLater()));
+    connect(this, SIGNAL(pauseVideo()), videoWorker, SLOT(pause_decode()),Qt::DirectConnection);
+    connect(this, SIGNAL(continueVideo()), videoWorker, SLOT(continue_decode()),Qt::DirectConnection);
     //connect(this, SIGNAL(quitVideoThread()), video_thread, SLOT(quit()));
     video_thread->start();
 
@@ -166,6 +201,8 @@ int decode::start(AVFormatContext *fmtCtx){
     connect(this, SIGNAL(quitAudioThread()), audioWorker, SLOT(quit_thread()),Qt::DirectConnection);
     connect(audio_thread, SIGNAL(finished()), audioWorker, SLOT(deleteLater()));
     connect(audio_thread, SIGNAL(finished()), audio_thread, SLOT(deleteLater()));
+    connect(this, SIGNAL(pauseAudio()), audioWorker, SLOT(pause_decode()),Qt::DirectConnection);
+    connect(this, SIGNAL(continueAudio()), audioWorker, SLOT(continue_decode()),Qt::DirectConnection);
     //connect(this, SIGNAL(quitAudioThread()), audio_thread, SLOT(quit()));
     audio_thread->start();
 
@@ -178,7 +215,13 @@ void decode::stop(){
     emit quitAudioThread();
     audio_thread->quit();
 
-
 }
-
+void decode::pauseDecode(){
+    emit pauseAudio();
+    emit pauseVideo();
+}
+void decode::continueDecode(){
+    emit continueAudio();
+    emit continueVideo();
+}
 

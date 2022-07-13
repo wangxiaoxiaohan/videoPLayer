@@ -26,7 +26,7 @@ Frame* framequeue::getEmptyFrame()
 }
 void framequeue::put(){
     mutex.lock();
-    printf(" put index %d\n",write_index);
+   // printf(" put index %d\n",write_index);
     frame_queue[write_index]->used = true;
     if(write_index + 1 == maxsize)
         write_index = 0;
@@ -38,7 +38,7 @@ void framequeue::put(){
 }
 Frame* framequeue::getAFullFrame(){
     mutex.lock();
-    printf("get index %d\n",read_index);
+   // printf("get index %d\n",read_index);
     while(!frame_queue[read_index]->used)
         condition.wait(&mutex);
     mutex.unlock();
