@@ -17,9 +17,9 @@ void worker::pause_decode(){
 
     pause_flag = true;
     qDebug() << "pause_decode !!!";
-    avcodec_flush_buffers(dec_ctx);
+    //avcodec_flush_buffers(dec_ctx);
     // clear frame queue
-    f_q->clear();
+    //f_q->clear();
 }
 void worker::continue_decode(){
     qDebug() << "continue decode !!!";
@@ -59,10 +59,10 @@ void worker::work_thread(){
                QThread::usleep(20000);
                QCoreApplication::processEvents(QEventLoop::AllEvents,100);
             }
-           qDebug() << "decoding!!!11111111"<< dec_ctx->codec_type << QThread::currentThreadId();
+           //qDebug() << "decoding!!!11111111"<< dec_ctx->codec_type << QThread::currentThreadId();
            AVPacket pkt;
            p_q->get(&pkt);
-           qDebug() << "decoding!!!2222222222"<< dec_ctx->codec_type << QThread::currentThreadId();
+           //qDebug() << "decoding!!!2222222222"<< dec_ctx->codec_type << QThread::currentThreadId();
            ret = avcodec_send_packet(dec_ctx, &pkt);
            //qDebug() << "avcodec_send_packet ret" << ret;
            if(ret < 0){
@@ -79,19 +79,19 @@ void worker::work_thread(){
                     qDebug() << "receive frame error!";
                     exit(0);
                 }
-                qDebug() << "decoding!!!333333"<< dec_ctx->codec_type << QThread::currentThreadId();
+                qDebug() << "decoding!!!333333 frame pts"<< frame->pts<< dec_ctx->codec_type << QThread::currentThreadId();
                 Frame *f = f_q->getEmptyFrame();
-                qDebug() << "decoding!!!44444444"<< dec_ctx->codec_type << QThread::currentThreadId();
+                //qDebug() << "decoding!!!44444444"<< dec_ctx->codec_type << QThread::currentThreadId();
                 f->pts = frame->pts;
                 av_frame_move_ref(f->af, frame);
                 av_frame_unref(frame);
 
                 f_q->put();
-                qDebug() << "decoding!!!555555555"<< dec_ctx->codec_type << QThread::currentThreadId();
+                //qDebug() << "decoding!!!555555555"<< dec_ctx->codec_type << QThread::currentThreadId();
                 QCoreApplication::processEvents(QEventLoop::AllEvents,100);
            }
             QCoreApplication::processEvents(QEventLoop::AllEvents,100);
-            qDebug() << "decoding!!!6666666666666"<< dec_ctx->codec_type << QThread::currentThreadId();
+            //qDebug() << "decoding!!!6666666666666"<< dec_ctx->codec_type << QThread::currentThreadId();
         }
         qDebug() << "decode real quit  threading!!!!!!!! !!! type" << dec_ctx->codec_type << QThread::currentThreadId();
         av_frame_free(&frame);

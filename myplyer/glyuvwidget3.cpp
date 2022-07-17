@@ -76,9 +76,14 @@ void glyuvwidget2::slotShowYuv(uchar *ptr_y,uchar *ptr_u,uchar *ptr_v,uint width
         m_pBufYuv420p_v = new unsigned char[bufSize/4];
     }
 
-    memcpy(m_pBufYuv420p_y,ptr_y, bufSize);
-    memcpy(m_pBufYuv420p_u,ptr_u, bufSize/4);
-    memcpy(m_pBufYuv420p_v,ptr_v, bufSize/4);
+    //memcpy(m_pBufYuv420p_y,ptr_y, bufSize);
+    //memcpy(m_pBufYuv420p_u,ptr_u, bufSize/4);
+    //memcpy(m_pBufYuv420p_v,ptr_v, bufSize/4);
+
+
+    m_pBufYuv420p_y = ptr_y;
+    m_pBufYuv420p_u = ptr_u;
+    m_pBufYuv420p_v = ptr_v;
     //m_pBufYuv420p = ptr;
     repaint();
 }

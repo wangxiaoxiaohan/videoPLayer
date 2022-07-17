@@ -24,6 +24,7 @@ enum mediaStatus{
     media_stopped,
     media_playing,
     media_paused,
+    media_seeking,
 };
 class splayer: public QObject{
     Q_OBJECT
@@ -42,6 +43,9 @@ public:
     enum mediaStatus mediaStatus();
 signals:
     void updateProgress(int current,int total);
+    void vSync();
+public slots:
+    void vSyncSlot();
 private:
     void stopDecoderDemuxer();
     void stopState();
@@ -60,7 +64,24 @@ private:
     QMutex mutex;
    // QThread* demuxThread;
     QThread* audio_th;
+    QThread* video_th;
     double playSpeed;
+
+    //uchar* y_ptr;
+    //uchar* u_ptr;
+    //uchar* v_ptr;
+
+    uchar* y_ptr_front;
+    uchar* u_ptr_front;
+    uchar* v_ptr_front;
+
+    uchar* y_ptr_back;
+    uchar* u_ptr_back;
+    uchar* v_ptr_back;
+
+    int bufSize_y;
+    int bufSize_u;
+    int bufSize_v;
 friend class playThread;
 
 };

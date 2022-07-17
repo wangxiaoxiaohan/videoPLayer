@@ -21,7 +21,7 @@ void demuxWorker::work_thread(){
     AVPacket pkt;
     qDebug() << "in demux work_thread";
     while(!quit_flag){
-        qDebug() << "in demux work_thread reading";
+        //qDebug() << "in demux work_thread reading";
         if(mDemuxer->fmtCtx){
             while((mDemuxer->audio_packq->size() > 1000) || mDemuxer->video_packq->size() > 500 ){
                 QThread::usleep(3000);
@@ -29,7 +29,7 @@ void demuxWorker::work_thread(){
                 //qDebug() << "packet full!!!";
             }
             if(mDemuxer->seek_flag){
-                qDebug() << "demux seek file!!!";
+                qDebug() << "demux seek file!!! mTimeStamp" << mDemuxer->mTimeStamp;
                 mDemuxer->audio_packq->clear();
                 mDemuxer->video_packq->clear();
                 int ret = avformat_seek_file(mDemuxer->fmtCtx, -1, INT64_MIN, mDemuxer->mTimeStamp, INT64_MAX, 0);
@@ -45,11 +45,10 @@ void demuxWorker::work_thread(){
             if(pkt.stream_index == mDemuxer->audio_steam_index){
                 //qDebug() << "read an audio packet size:";
                 mDemuxer->audio_packq->put(&pkt);
-                //qDebug() << "audio pkt pts" << pkt.pts;
+                qDebug() << "audio pkt pts" << pkt.pts;
             }else if(pkt.stream_index == mDemuxer->video_steam_index){
-               // qDebug() << "PUT LIST SIZE" << video_packq->size();
                 mDemuxer->video_packq->put(&pkt);
-              // qDebug() << "read a video packet size:" << pkt.size;
+                qDebug() << "video pkt pts" << pkt.pts;
             }else{
               // subtitle_packq->put(&pkt);
                 av_packet_unref(&pkt);
@@ -94,7 +93,7 @@ int demux::openFile(QString path){
     audio_steam_index = av_find_best_stream(fmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
 
     video_steam_index = av_find_best_stream(fmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
-
+    qDebug() << "fmt duration"<< fmtCtx->duration;
 
 }
 

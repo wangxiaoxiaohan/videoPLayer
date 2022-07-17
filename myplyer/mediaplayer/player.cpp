@@ -10,8 +10,8 @@ playThread::playThread(splayer *player,AVMediaType type):
 
 }
 void playThread::play_loop(){
-    while(mPlayer->mMediaStatus != media_stopped){
         if(mMediaType == AVMEDIA_TYPE_AUDIO){
+            while(mPlayer->mMediaStatus != media_stopped){
             Frame* aframe = NULL;
             aframe = mPlayer->decoder->audio_frame_q->getAFullFrame();
             if(mPlayer->audio_clock == 0 ) mPlayer->audio_clock = aframe->af->pts;
@@ -55,7 +55,7 @@ void playThread::play_loop(){
                 memcpy(buf,aframe->af->data[0],size);
 
             }
-            qDebug() << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!audio pts" <<aframe->af->pts;
+            qDebug() << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!mPlayer->audio_clock" <<mPlayer->audio_clock;
             double sleeptime = 1000000 * aframe->af->nb_samples * mPlayer->audio_timebase.num / mPlayer->audio_timebase.den;
             qDebug() << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!audio sleep us:" <<sleeptime;
             QThread::usleep(sleeptime / mPlayer->playSpeed);
@@ -75,10 +75,77 @@ void playThread::play_loop(){
                 //qDebug() << "vvvvvvvvv!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! audio not playing!!!!!! "<< mPlayer->mMediaStatus;
                 QCoreApplication::processEvents(QEventLoop::AllEvents,100);
             }
-           }
+            while(mPlayer->mMediaStatus == media_seeking){
+                mPlayer->audio_clock = 0;
+                QThread::usleep(3000);
+                qDebug() << "audio play loop seeking!!!";
+                QCoreApplication::processEvents(QEventLoop::AllEvents,100);
+            }
+
+            }
+            mPlayer->decoder->audio_frame_q->clear();
+            qDebug() << "vvvvvvvvv!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! audio play loop exit";
+        }else{
+            while(mPlayer->mMediaStatus != media_stopped){
+
+                Frame* vframe;
+                vframe = mPlayer->decoder->video_frame_q->getAFullFrame();
+                if(mPlayer->video_clock == 0 ) mPlayer->video_clock = vframe->af->pts;
+
+                double duration = 1000000 * (vframe->af->pts - mPlayer->video_clock)  * mPlayer->video_timebase.num / mPlayer->video_timebase.den;
+                qDebug() << "play loop 1111";
+                while(1){
+                    double deviation =  1000000 * (mPlayer->video_clock / mPlayer->video_timebase.den - mPlayer->audio_clock / mPlayer->audio_timebase.den);
+                    qDebug() << "video_clock" << mPlayer->video_clock;
+                    qDebug() << "vvvvvvvvv!!!!!!!!!!!!!!!! deviation " << deviation << "duration" << duration;
+                    if(abs(deviation) < duration || duration == 0) break;
+                    if(mPlayer->mMediaStatus == media_seeking) break;
+
+                    if(deviation< 0){
+                        av_frame_unref(vframe->af);
+                        mPlayer->decoder->video_frame_q->pop();
+                        vframe = mPlayer->decoder->video_frame_q->getAFullFrame();
+                    }else{
+                        memcpy(mPlayer->y_ptr_front,vframe->af->data[0], mPlayer->bufSize_y);
+                        memcpy(mPlayer->u_ptr_front,vframe->af->data[1], mPlayer->bufSize_u);
+                        memcpy(mPlayer->v_ptr_front,vframe->af->data[2], mPlayer->bufSize_v);
+
+                        emit mPlayer->vSync();
+                        QThread::usleep(duration);
+                    }
+                    mPlayer->video_clock = vframe->af->pts;
+                    QCoreApplication::processEvents(QEventLoop::AllEvents,100);
+                }
+                qDebug() << "play loop 22222";
+                QThread::usleep(duration / mPlayer->playSpeed);
+
+                memcpy(mPlayer->y_ptr_front,vframe->af->data[0], mPlayer->bufSize_y);
+                memcpy(mPlayer->u_ptr_front,vframe->af->data[1], mPlayer->bufSize_u);
+                memcpy(mPlayer->v_ptr_front,vframe->af->data[2], mPlayer->bufSize_v);
+                emit mPlayer->vSync();
+
+                mPlayer->video_clock = vframe->af->pts;
+                qDebug() << "play loop 3333";
+                av_frame_unref(vframe->af);
+                mPlayer->decoder->video_frame_q->pop();
+                qDebug() << "play loop 4444";
+
+                while(mPlayer->mMediaStatus == media_paused){
+                    QThread::usleep(3000);
+                    qDebug() << "play loop pausing!!!";
+                    QCoreApplication::processEvents(QEventLoop::AllEvents,100);
+                }
+                while(mPlayer->mMediaStatus == media_seeking){
+                    mPlayer->video_clock = 0;
+                    QThread::usleep(3000);
+                    qDebug() << "video play loop seeking!!!";
+                    QCoreApplication::processEvents(QEventLoop::AllEvents,100);
+                }
+                QCoreApplication::processEvents(QEventLoop::AllEvents,100);
+            }
+            mPlayer->decoder->video_frame_q->clear();
+            qDebug() << "vvvvvvvvv!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! video play loop exit";
         }
-        mPlayer->decoder->audio_frame_q->clear();
-    qDebug() << "vvvvvvvvv!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! audio play loop exit";
 }
 splayer::splayer(glyuvwidget2* glw){
     demuxer = new demux();
@@ -91,6 +158,22 @@ splayer::splayer(glyuvwidget2* glw){
     video_clock = 0;
     mMediaStatus  = media_idle;
     playSpeed = 1.0;
+    //fix me!!!
+    bufSize_y = 1920 * 1080;
+    bufSize_u = 1920 * 1080 / 4;
+    bufSize_v = 1920 * 1080 / 4;
+    y_ptr_front = new  unsigned char[bufSize_y];
+    u_ptr_front = new  unsigned char[bufSize_u];
+    v_ptr_front = new  unsigned char[bufSize_v];
+
+    y_ptr_back = new  unsigned char[bufSize_y];
+    u_ptr_back = new  unsigned char[bufSize_u];
+    v_ptr_back = new  unsigned char[bufSize_v];
+
+    connect(this,SIGNAL(vSync()),this,SLOT(vSyncSlot()));
+
+
+    qDebug() << "main thread id" << QThread::currentThreadId();
 }
 splayer::~splayer(){
 
@@ -112,48 +195,14 @@ void splayer::play_loop(){
     connect(audio_th, SIGNAL(finished()), audio_th, SLOT(deleteLater()));
     connect(audio_th, SIGNAL(finished()), aP, SLOT(deleteLater()));
     audio_th->start();
-    while(mMediaStatus != media_stopped){
 
-        Frame* vframe;
-        vframe = decoder->video_frame_q->getAFullFrame();
-        if(video_clock == 0 ) video_clock = vframe->af->pts;
-
-        double duration = 1000000 * (vframe->af->pts - video_clock)  * video_timebase.num / video_timebase.den;
-        qDebug() << "play loop 1111";
-        while(1){
-            double deviation =  1000000 * (video_clock / video_timebase.den - audio_clock / audio_timebase.den);
-            qDebug() << "vvvvvvvvv!!!!!!!!!!!!!!!! deviation " << deviation << "duration" << duration;
-            if(abs(deviation) < duration || duration == 0) break;
-            if(deviation< 0){
-                av_frame_unref(vframe->af);
-                decoder->video_frame_q->pop();
-                vframe = decoder->video_frame_q->getAFullFrame();
-            }else{
-                glwidget->slotShowYuv(vframe->af->data[0],vframe->af->data[1],vframe->af->data[2],1920,1080);
-                QThread::usleep(duration);
-            }
-            video_clock = vframe->af->pts;
-            QCoreApplication::processEvents(QEventLoop::AllEvents,100);
-        }
-        qDebug() << "play loop 22222";
-        QThread::usleep(duration / playSpeed);
-        glwidget->slotShowYuv(vframe->af->data[0],vframe->af->data[1],vframe->af->data[2],1920,1080);
-        video_clock = vframe->af->pts;
-        qDebug() << "play loop 3333";
-        av_frame_unref(vframe->af);
-        decoder->video_frame_q->pop();
-        qDebug() << "play loop 4444";
-
-        while(mMediaStatus == media_paused){
-            QThread::usleep(3000);
-            qDebug() << "play loop 555555";
-            QCoreApplication::processEvents(QEventLoop::AllEvents,100);
-        }
-        QCoreApplication::processEvents(QEventLoop::AllEvents,100);
-    }
-    decoder->video_frame_q->clear();
-    qDebug() << "vvvvvvvvv!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! video play loop exit";
-    // fix me !!! only video can not ensure media state!!!
+    video_th = new QThread;
+    playThread *vP =  new playThread(this,AVMEDIA_TYPE_VIDEO);
+    vP->moveToThread(video_th);
+    connect(video_th, SIGNAL(started()), vP, SLOT(play_loop()));
+    connect(video_th, SIGNAL(finished()), video_th, SLOT(deleteLater()));
+    connect(video_th, SIGNAL(finished()), vP, SLOT(deleteLater()));
+    video_th->start();
 }
 void splayer::pause(){
     mMediaStatus = media_paused;
@@ -179,37 +228,31 @@ void splayer::stopDecoderDemuxer(){
 }
 
 void splayer:: seek(double precent){
-    //stop playloop
-    stopState();
-    //pause();
 
-    audio_clock = 0;
-    video_clock = 0;
-    QThread::usleep(30000);
-// to do    fix decode pts!!!!!!!!
-
+    mMediaStatus = media_seeking;
 
     //pause decode
     decoder->pauseDecode();
     QThread::usleep(30000);
     //seek
-    double total =fmt_ctx->streams[demuxer->audio_steam_index]->duration;
+    double total =fmt_ctx->duration;
           //  *audio_timebase.num / audio_timebase.den;
     double timestamp = total * precent / 1000;
     qDebug() << "demuxer->seek  total " << total << "percent" << precent << "timestamp" <<timestamp;
     demuxer->seek(timestamp);
 
-
     QThread::usleep(30000);
-    //flush dcode && clear frame queue && continue decoder
+
     qDebug() << "seek flush decode && clear frame queue && continue decoder";
+
     decoder->continueDecode();
 
     QThread::usleep(30000);
     qDebug() << " seek play_loop";
     //restart playloop
     play();
-    play_loop();
+    qDebug() << " seek play";
+    //play_loop();
 }
 void splayer::setPlayRate(double speed){
     playSpeed = speed;
@@ -244,4 +287,28 @@ void splayer::prepare(QString file){
     audioOut = new audioOutput();
     // to do,set audio format
     play_loop();
+}
+void splayer::vSyncSlot(){
+    qDebug() << "vSync thread id" << QThread::currentThreadId();
+
+    /*
+     * when ew receice signal to here , front buffer has full
+     * swap front and back buffer at once
+     * then render back buffer
+    */
+    uchar* y_ptr = y_ptr_front;
+    uchar* u_ptr = u_ptr_front;
+    uchar* v_ptr = v_ptr_front;
+
+    y_ptr_front = y_ptr_back;
+    u_ptr_front = u_ptr_back;
+    v_ptr_front = v_ptr_back;
+
+    y_ptr_back = y_ptr;
+    u_ptr_back = u_ptr;
+    v_ptr_back = v_ptr;
+
+    glwidget->slotShowYuv(y_ptr_back,u_ptr_back,v_ptr_back,1920,1080);
+
+
 }
