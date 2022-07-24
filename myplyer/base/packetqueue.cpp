@@ -1,5 +1,5 @@
 #include "base/packetqueue.h"
-
+#include <QDebug>
 packetqueue::packetqueue()
     :list_size(0)
 {
@@ -9,13 +9,14 @@ packetqueue::packetqueue()
 }
 //packetqueue still exist memory lack
 
-AVPacket packetqueue::get(AVPacket *pkt){
+AVPacket packetqueue::  get(AVPacket *pkt){
    // printf("packetqueue get\n");
     mutex.lock();
     while(packet_queue.size == 0)
         condition.wait(&mutex);
 
     Packet_Node *node = packet_queue.first;
+    qDebug() << "get packet pts  type "<< node->packt.stream_index << ""<<node->packt.pts;
     *pkt = node->packt;
     packet_queue.first = node->next;
     av_free(node);

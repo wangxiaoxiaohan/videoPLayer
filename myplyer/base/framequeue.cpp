@@ -60,20 +60,14 @@ void framequeue::clear(){
     for(int i = 0 ; i < maxsize; i++){
         if(frame_queue[i]->used){
             av_frame_unref(frame_queue[i]->af);
-            frame_queue[i]->used = false;
         }
+        frame_queue[i]->used = false;
     }
     write_index = 0;
     read_index = 0;
     condition.wakeAll();
     mutex.unlock();
 }
-void framequeue::debug(){
 
-    for(int i = 0 ; i < maxsize; i++){
-       qDebug() << "frame_queue[i]->used" << frame_queue[i]->used;
-    }
-
-}
 
 

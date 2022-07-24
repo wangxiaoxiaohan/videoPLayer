@@ -1,6 +1,7 @@
 #include "demuxer/demux.h"
 #include <QtDebug>
 #include <QCoreApplication>
+#include <QDateTime>
 demuxWorker::demuxWorker(demux *demuxer)
     :mDemuxer(demuxer),
     quit_flag(false)
@@ -21,20 +22,27 @@ void demuxWorker::work_thread(){
     AVPacket pkt;
     qDebug() << "in demux work_thread";
     while(!quit_flag){
-        //qDebug() << "in demux work_thread reading";
+        //qDebug() << "timeStamp demux work_thread reading" <<QDateTime::currentDateTime().toString("hh:mm:ss.zzz ");
         if(mDemuxer->fmtCtx){
             while((mDemuxer->audio_packq->size() > 1000) || mDemuxer->video_packq->size() > 500 ){
+                if(mDemuxer->seek_flag){
+                    break;
+                }
                 QThread::usleep(3000);
                 QCoreApplication::processEvents(QEventLoop::AllEvents,100);
                 //qDebug() << "packet full!!!";
             }
             if(mDemuxer->seek_flag){
-                qDebug() << "demux seek file!!! mTimeStamp" << mDemuxer->mTimeStamp;
+                qDebug() << "timeStamp mDemuxer seek start" <<QDateTime::currentDateTime().toString("hh:mm:ss.zzz ");
                 mDemuxer->audio_packq->clear();
                 mDemuxer->video_packq->clear();
+
                 int ret = avformat_seek_file(mDemuxer->fmtCtx, -1, INT64_MIN, mDemuxer->mTimeStamp, INT64_MAX, 0);
+
+                qDebug() << "timeStamp mDemuxer seek end" <<QDateTime::currentDateTime().toString("hh:mm:ss.zzz ");
                 qDebug() << "demux seek file ret " << ret;
-                qDebug() << "mDemuxer->mTimeStamp" << mDemuxer->mTimeStamp;
+                //qDebug() << "mDemuxer->mTimeStamp" << mDemuxer->mTimeStamp;
+
                 mDemuxer->seek_flag = false;
             }
             int ret = av_read_frame(mDemuxer->fmtCtx,&pkt);
@@ -43,7 +51,6 @@ void demuxWorker::work_thread(){
                 continue;
             }
             if(pkt.stream_index == mDemuxer->audio_steam_index){
-                //qDebug() << "read an audio packet size:";
                 mDemuxer->audio_packq->put(&pkt);
                 qDebug() << "audio pkt pts" << pkt.pts;
             }else if(pkt.stream_index == mDemuxer->video_steam_index){
@@ -128,7 +135,7 @@ int demux::stop(){
 
 }
 int demux::seek(double timeStamp){
-    qDebug() << "seek timestamp" << timeStamp;
+    qDebug() << "timeStamp receive seek signal" <<QDateTime::currentDateTime().toString("hh:mm:ss.zzz ");
     seek_flag = true;
     mTimeStamp = timeStamp;
 

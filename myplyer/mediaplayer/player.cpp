@@ -1,7 +1,7 @@
 #include "mediaplayer/player.h"
 #include <QFile>
 #include <QCoreApplication>
-
+#include <QDateTime>
 playThread::playThread(splayer *player,AVMediaType type):
     mMediaType(type),
     mPlayer(player)
@@ -21,7 +21,7 @@ void playThread::play_loop(){
                 break;
             }
             int size = aframe->af->nb_samples * data_size;
-            qDebug() << "@@@@@@@@@total size" << size << "  "<<aframe->af->nb_samples << "   "<<data_size;
+            //qDebug() << "@@@@@@@@@total size" << size << "  "<<aframe->af->nb_samples << "   "<<data_size;
 
             // fix me !! if contine here ,this frame will not pop ,cause died loop;
             if (size <= 0){
@@ -59,26 +59,34 @@ void playThread::play_loop(){
             double sleeptime = 1000000 * aframe->af->nb_samples * mPlayer->audio_timebase.num / mPlayer->audio_timebase.den;
             qDebug() << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!audio sleep us:" <<sleeptime;
             QThread::usleep(sleeptime / mPlayer->playSpeed);
+
             qDebug() << "audio loop 000";
+
             mPlayer->audioOut->playRawAudio(QByteArray(buf,size));
             mPlayer->audio_clock = aframe->af->pts;
             av_frame_unref(aframe->af);
             mPlayer->decoder->audio_frame_q->pop();
+
             qDebug() << "audio loop 111";
+
             double Currentsecond =  mPlayer->audio_clock * mPlayer->audio_timebase.num / mPlayer->audio_timebase.den;
             double total = mPlayer->fmt_ctx->streams[mPlayer->demuxer->audio_steam_index]->duration *
                     mPlayer->audio_timebase.num / mPlayer->audio_timebase.den;
             emit mPlayer->updateProgress((int)Currentsecond,(int)total);
+
             qDebug() << "audio loop 222";
+
             while(mPlayer->mMediaStatus == media_paused){
                 QThread::usleep(3000);
-                //qDebug() << "vvvvvvvvv!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! audio not playing!!!!!! "<< mPlayer->mMediaStatus;
+
                 QCoreApplication::processEvents(QEventLoop::AllEvents,100);
             }
             while(mPlayer->mMediaStatus == media_seeking){
                 mPlayer->audio_clock = 0;
                 QThread::usleep(3000);
                 qDebug() << "audio play loop seeking!!!";
+
+                // fix me !!! clear & reset each time is not necessary!!!
                 QCoreApplication::processEvents(QEventLoop::AllEvents,100);
             }
 
@@ -90,14 +98,21 @@ void playThread::play_loop(){
 
                 Frame* vframe;
                 vframe = mPlayer->decoder->video_frame_q->getAFullFrame();
-                if(mPlayer->video_clock == 0 ) mPlayer->video_clock = vframe->af->pts;
+                if(mPlayer->video_clock == 0 ){
+                  qDebug() << "@@@mPlayer->video_clock  is 0 , now set it frame pts";
+                  mPlayer->video_clock = vframe->af->pts;
+                }
+
+
 
                 double duration = 1000000 * (vframe->af->pts - mPlayer->video_clock)  * mPlayer->video_timebase.num / mPlayer->video_timebase.den;
-                qDebug() << "play loop 1111";
+                qDebug() << "duration" << duration;
+                qDebug() << "video_clock" << (int64_t)mPlayer->video_clock;
+                qDebug() << "vframe->af->pts" << vframe->af->pts;
+                /*sync code start*/
                 while(1){
-                    double deviation =  1000000 * (mPlayer->video_clock / mPlayer->video_timebase.den - mPlayer->audio_clock / mPlayer->audio_timebase.den);
-                    qDebug() << "video_clock" << mPlayer->video_clock;
-                    qDebug() << "vvvvvvvvv!!!!!!!!!!!!!!!! deviation " << deviation << "duration" << duration;
+                    double deviation =  1000000 * (mPlayer->video_clock / mPlayer->video_timebase.den - mPlayer->audio_clock / mPlayer->audio_timebase.den);  
+                    qDebug() << "!!!!!!!!!!!!!!!! deviation " << deviation ;
                     if(abs(deviation) < duration || duration == 0) break;
                     if(mPlayer->mMediaStatus == media_seeking) break;
 
@@ -111,13 +126,17 @@ void playThread::play_loop(){
                         memcpy(mPlayer->v_ptr_front,vframe->af->data[2], mPlayer->bufSize_v);
 
                         emit mPlayer->vSync();
-                        QThread::usleep(duration);
+                        if(duration > 0)
+                            QThread::usleep(duration);
                     }
                     mPlayer->video_clock = vframe->af->pts;
                     QCoreApplication::processEvents(QEventLoop::AllEvents,100);
                 }
+                /*sync code end*/
+
                 qDebug() << "play loop 22222";
-                QThread::usleep(duration / mPlayer->playSpeed);
+                if(duration > 0)
+                    QThread::usleep(duration / mPlayer->playSpeed);
 
                 memcpy(mPlayer->y_ptr_front,vframe->af->data[0], mPlayer->bufSize_y);
                 memcpy(mPlayer->u_ptr_front,vframe->af->data[1], mPlayer->bufSize_u);
@@ -139,6 +158,8 @@ void playThread::play_loop(){
                     mPlayer->video_clock = 0;
                     QThread::usleep(3000);
                     qDebug() << "video play loop seeking!!!";
+
+                    // fix me !!! clear & reset each time is not necessary!!!
                     QCoreApplication::processEvents(QEventLoop::AllEvents,100);
                 }
                 QCoreApplication::processEvents(QEventLoop::AllEvents,100);
@@ -217,6 +238,7 @@ void splayer::stopState(){
         return;
     mMediaStatus = media_stopped;
     audio_th->quit();
+    video_th->quit();
 
 }
 void splayer::stopDecoderDemuxer(){
@@ -233,18 +255,21 @@ void splayer:: seek(double precent){
 
     //pause decode
     decoder->pauseDecode();
+    qDebug() << "timeStamp send pauseDecode command" <<QDateTime::currentDateTime().toString("hh:mm:ss.zzz ");
     QThread::usleep(30000);
     //seek
     double total =fmt_ctx->duration;
           //  *audio_timebase.num / audio_timebase.den;
     double timestamp = total * precent / 1000;
-    qDebug() << "demuxer->seek  total " << total << "percent" << precent << "timestamp" <<timestamp;
+    qDebug() << "demuxer->seek  total " << total << "percent" << precent << "timestamp" <<timestamp \
+             << "      " << QDateTime::currentDateTime().toString("hh:mm:ss.zzz ");
+
     demuxer->seek(timestamp);
+    qDebug() << "timeStamp send seek command" <<QDateTime::currentDateTime().toString("hh:mm:ss.zzz ");
 
-    QThread::usleep(30000);
+    QThread::usleep(60000);
 
-    qDebug() << "seek flush decode && clear frame queue && continue decoder";
-
+    qDebug() << "timeStamp send seek command && usleep 60000" <<QDateTime::currentDateTime().toString("hh:mm:ss.zzz ");
     decoder->continueDecode();
 
     QThread::usleep(30000);
@@ -289,7 +314,7 @@ void splayer::prepare(QString file){
     play_loop();
 }
 void splayer::vSyncSlot(){
-    qDebug() << "vSync thread id" << QThread::currentThreadId();
+    //qDebug() << "vSync thread id" << QThread::currentThreadId();
 
     /*
      * when ew receice signal to here , front buffer has full
